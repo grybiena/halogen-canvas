@@ -2,11 +2,10 @@
   with ps-pkgs;
   { version = "1.0.0";
     dependencies =
-      [ halogen
-        halogen-css
-        profunctor-lenses
-        options
+      [ aff-promise
         canvas
+        colors
+        halogen
       ];
     src = "src";
     pursuit = {

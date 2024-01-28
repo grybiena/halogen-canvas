@@ -1,0 +1,22 @@
+{
+  "dependencies": {
+    "purescript-aff-promise": "^v4.0.0",
+    "purescript-canvas": "^v6.0.0",
+    "purescript-colors": "^v7.0.1",
+    "purescript-halogen": "^v7.0.0"
+  },
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "output"
+  ],
+  "license": [
+    "MIT"
+  ],
+  "name": "purescript-halogen-canvas",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/grybiena/halogen-canvas.git"
+  }
+}
