@@ -12,7 +12,7 @@ import Data.Traversable (traverse_)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
 import Graphics.Canvas (getContext2D)
-import Graphics.Canvas.Free (CanvasContext, CanvasT, runCanvasT, withContext)
+import Graphics.Canvas.Free (CanvasContext, CanvasT, clearRect, getHeight, getWidth, runCanvasT, withContext)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -116,7 +116,12 @@ handleAction = case _ of
   AnimationFrame t -> do
     { game, canvas } <- H.modify (\st -> st { game = st.game { world = st.game.animate t st.game.world } })
     flip traverse_ canvas $ \c -> do
-      H.lift $ runReaderT (runCanvasT (withContext $ game.draw game.world)) c
+      let draw = do
+            width <- getWidth
+            height <- getHeight
+            clearRect { x: 0.0, y: 0.0, width, height }
+            game.draw game.world
+      H.lift $ runReaderT (runCanvasT (withContext draw)) c
 
 stopInputEventPropagation :: InputEvent -> Effect Unit
 stopInputEventPropagation (KeyDown e) = stopPropagation $ KeyboardEvent.toEvent e
