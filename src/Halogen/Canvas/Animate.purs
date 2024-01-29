@@ -1,4 +1,4 @@
-module Halogen.Canvas
+module Halogen.Canvas.Animate
   ( component
   ) where
 
@@ -7,39 +7,50 @@ import Prelude
 import Control.Monad.Reader (runReaderT)
 import Control.Monad.Rec.Class (class MonadRec)
 import Data.Maybe (Maybe(..))
-import Data.Traversable (traverse, traverse_)
+import Data.Traversable (traverse_)
 import Effect.Aff.Class (class MonadAff)
 import Graphics.Canvas (getContext2D)
 import Graphics.Canvas.Free (CanvasContext, CanvasT, runCanvasT)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
+import Halogen.Subscription as HS
 import Unsafe.Coerce (unsafeCoerce)
+import Web.HTML (window)
+import Web.HTML.Window.AnimationFrame (DOMHighResTimestamp, requestAnimationFrame)
 
 type Dimensions =
   { width :: Int
   , height :: Int
   }
 
-type State =
+
+type Animation m =
   { dimensions :: Dimensions
+  , animation :: DOMHighResTimestamp -> CanvasT m Unit
+  }
+
+type State m =
+  { dimensions :: Dimensions
+  , animation :: DOMHighResTimestamp -> CanvasT m Unit
   , canvas :: Maybe CanvasContext
   }
 
-data Action = Initialize
+data Action =
+    Initialize
+  | AnimationFrame DOMHighResTimestamp
 
-component :: forall o m. MonadAff m => MonadRec m => H.Component (CanvasT m) Dimensions o m
+component :: forall q o m. MonadAff m => MonadRec m => H.Component q (Animation m) o m
 component = do
   H.mkComponent
-    { initialState: \dimensions -> { dimensions, canvas: Nothing }
+    { initialState: \{ dimensions, animation } -> { dimensions, animation, canvas: Nothing }
     , render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
-                                     , handleQuery = handleQuery 
                                      , initialize = Just Initialize
                                      }
     }
 
-render :: forall m. State -> H.ComponentHTML Action () m
+render :: forall m. State m -> H.ComponentHTML Action () m
 render { dimensions } =
   HH.canvas
     [ HP.ref (H.RefLabel "canvas")
@@ -49,8 +60,9 @@ render { dimensions } =
 
 handleAction :: forall m o .
                 MonadAff m
+             => MonadRec m
              => Action
-             -> H.HalogenM State Action () o m Unit
+             -> H.HalogenM (State m) Action () o m Unit
 handleAction = case _ of
   Initialize -> do
     e <- H.getRef (H.RefLabel "canvas")
@@ -58,15 +70,15 @@ handleAction = case _ of
        let canvasElement = unsafeCoerce ce
        context2D <- H.liftEffect $ getContext2D canvasElement
        H.modify_ (\st -> st { canvas = Just { canvasElement, context2D } })
+       { emitter, listener } <- H.liftEffect HS.create
+       let animationLoop t = do
+             HS.notify listener t
+             void $ window >>= requestAnimationFrame animationLoop
+       H.liftEffect $ void $ window >>= requestAnimationFrame animationLoop
+       void $ H.subscribe (AnimationFrame <$> emitter)
+  AnimationFrame t -> do
+    { animation, canvas } <- H.get
+    flip traverse_ canvas $ \c -> do
+      H.lift $ runReaderT (runCanvasT (animation t)) c
 
-
-handleQuery :: forall m o a .
-                MonadAff m
-             => MonadRec m 
-             => CanvasT m a
-             -> H.HalogenM State Action () o m (Maybe a)
-handleQuery f = do 
-  { canvas } <- H.get
-  flip traverse canvas $ \c -> do
-    H.lift $ runReaderT (runCanvasT f) c
 
