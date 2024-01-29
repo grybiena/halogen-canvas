@@ -1,4 +1,4 @@
-module Halogen.Canvas.Game
+module Halogen.Canvas.Interact
   ( InputEvent(..)
   , component
   ) where
@@ -44,16 +44,16 @@ data InputEvent =
   | MouseLeave MouseEvent
   | MouseMove MouseEvent
 
-type Game world m =
+type Interact world m =
   { dimensions :: Dimensions 
   , world :: world
   , draw :: world -> CanvasT m Unit
   , input :: InputEvent -> DOMRect -> world -> world
-  , animate :: DOMHighResTimestamp -> world -> world 
+  , animate :: DOMHighResTimestamp -> world -> world
   }
 
 type State world m =
-  { game :: Game world m 
+  { game :: Interact world m 
   , canvas :: Maybe CanvasContext
   }
 
@@ -62,7 +62,7 @@ data Action =
   | AnimationFrame DOMHighResTimestamp
   | InputEvent InputEvent 
 
-component :: forall q o world m. MonadAff m => MonadRec m => H.Component q (Game world m) o m
+component :: forall q o world m. MonadAff m => MonadRec m => H.Component q (Interact world m) o m
 component = do
   H.mkComponent
     { initialState: \game -> { game, canvas: Nothing }
