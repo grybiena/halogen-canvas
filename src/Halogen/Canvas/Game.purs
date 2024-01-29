@@ -1,5 +1,5 @@
 module Halogen.Canvas.Game
-  ( InputEvent
+  ( InputEvent(..)
   , component
   ) where
 
