@@ -444,6 +444,13 @@ save = liftC $ Save unit
 restore :: forall m. CanvasT m Unit
 restore = liftC $ Restore unit
 
+withContext :: forall m a. CanvasT m a -> CanvasT m a
+withContext f = do
+  save
+  a <- f
+  restore
+  pure a
+
 getImageData :: forall m. Rectangle -> CanvasT m ImageData
 getImageData r = liftC $ GetImageData r identity
 

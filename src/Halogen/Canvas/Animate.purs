@@ -10,7 +10,7 @@ import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse_)
 import Effect.Aff.Class (class MonadAff)
 import Graphics.Canvas (getContext2D)
-import Graphics.Canvas.Free (CanvasContext, CanvasT, runCanvasT)
+import Graphics.Canvas.Free (CanvasContext, CanvasT, runCanvasT, withContext)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
@@ -79,6 +79,6 @@ handleAction = case _ of
   AnimationFrame t -> do
     { animation, canvas } <- H.get
     flip traverse_ canvas $ \c -> do
-      H.lift $ runReaderT (runCanvasT (animation t)) c
+      H.lift $ runReaderT (runCanvasT (withContext $ animation t)) c
 
 
