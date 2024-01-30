@@ -84,8 +84,10 @@ handleAction = case _ of
     flip traverse_ e $ \ce -> do
        let canvasElement = unsafeCoerce ce
        context2D <- H.liftEffect $ getContext2D canvasElement
-       H.modify_ (\st -> st { canvas = Just { canvasElement, context2D } })
+       let ctx = { canvasElement, context2D }
+       { game } <- H.modify (\st -> st { canvas = Just ctx })
        { emitter, listener } <- H.liftEffect HS.create
+       H.lift $ runReaderT (runCanvasT (withContext $ game.draw game.world )) ctx
        let animationLoop t = do
              HS.notify listener t
              void $ window >>= requestAnimationFrame animationLoop
