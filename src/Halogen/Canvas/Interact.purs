@@ -7,21 +7,19 @@ module Halogen.Canvas.Interact
 
 import Prelude
 
-import Control.Monad.Reader (runReaderT)
 import Control.Monad.Rec.Class (class MonadRec)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse_)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
-import Graphics.Canvas (getContext2D)
-import Graphics.Canvas.Free (CanvasContext, CanvasT, clearRect, getHeight, getWidth, runCanvasT, withContext)
+import Graphics.Canvas.Free (CanvasT, clearRect, getBoundingClientRect, getHeight, getWidth, withContext)
 import Halogen as H
 import Halogen.Canvas (Dimensions)
+import Halogen.Canvas as Canvas
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.HTML.Properties as HP
-import Unsafe.Coerce (unsafeCoerce)
-import Web.DOM.Element (DOMRect, getBoundingClientRect)
+import Type.Proxy (Proxy(..))
+import Web.DOM.Element (DOMRect)
 import Web.Event.Event (stopPropagation)
 import Web.UIEvent.KeyboardEvent (KeyboardEvent)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
@@ -46,10 +44,11 @@ type Interact world m =
   , input :: InputEvent -> DOMRect -> world -> world
   }
 
-type State world m =
-  { interact :: Interact world m 
-  , canvas :: Maybe CanvasContext
-  }
+
+type Slots m = ( canvas :: forall o. H.Slot (CanvasT m) o Unit ) 
+
+_canvas = Proxy :: Proxy "canvas"
+
 
 data Action =
     Initialize
@@ -58,20 +57,17 @@ data Action =
 component :: forall q o world m. MonadAff m => MonadRec m => H.Component q (Interact world m) o m
 component = do
   H.mkComponent
-    { initialState: \interact -> { interact, canvas: Nothing }
+    { initialState: identity 
     , render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                      , initialize = Just Initialize
                                      }
     }
 
-render :: forall world m. State world m -> H.ComponentHTML Action () m
-render { interact } =
-  HH.canvas
-    [ HP.ref (H.RefLabel "canvas")
-    , HP.width interact.dimensions.width
-    , HP.height interact.dimensions.height
-    , HE.onKeyDown (InputEvent <<< KeyDown) 
+render :: forall world m. MonadAff m => MonadRec m => Interact world m -> H.ComponentHTML Action (Slots m) m
+render { dimensions } =
+  HH.div
+    [ HE.onKeyDown (InputEvent <<< KeyDown) 
     , HE.onKeyUp (InputEvent <<< KeyUp)
     , HE.onClick (InputEvent <<< Click)
     , HE.onDoubleClick (InputEvent <<< DoubleClick)
@@ -81,35 +77,29 @@ render { interact } =
     , HE.onMouseLeave (InputEvent <<< MouseLeave)
     , HE.onMouseMove (InputEvent <<< MouseMove)
     ]
+    [ HH.slot_ _canvas unit Canvas.component dimensions
+    ]
 
 handleAction :: forall m o world .
                 MonadAff m
              => MonadRec m
              => Action
-             -> H.HalogenM (State world m) Action () o m Unit
+             -> H.HalogenM (Interact world m) Action (Slots m) o m Unit
 handleAction = case _ of
   Initialize -> do
-    e <- H.getRef (H.RefLabel "canvas")
-    flip traverse_ e $ \ce -> do
-       let canvasElement = unsafeCoerce ce
-       context2D <- H.liftEffect $ getContext2D canvasElement
-       let ctx = { canvasElement, context2D }
-       { interact } <- H.modify (\st -> st { canvas = Just ctx })
-       H.lift $ runReaderT (runCanvasT (withContext $ interact.draw interact.world )) ctx
+    { draw, world } <- H.get
+    void $ H.query _canvas unit (withContext $ draw world )
   InputEvent e -> do
-    l <- H.getRef (H.RefLabel "canvas")
-    flip traverse_ l $ \ce -> do
-       r <- H.liftEffect $ getBoundingClientRect ce
+    rect <- H.query _canvas unit getBoundingClientRect
+    flip traverse_ rect $ \r -> do
        H.liftEffect $ stopInputEventPropagation e
-       { interact, canvas } <- H.modify (\st -> st { interact = st.interact { world = st.interact.input e r st.interact.world } })
-       flip traverse_ canvas $ \c -> do
-         let draw = do
-               width <- getWidth
-               height <- getHeight
-               clearRect { x: 0.0, y: 0.0, width, height }
-               interact.draw interact.world
-         H.lift $ runReaderT (runCanvasT (withContext draw)) c
-
+       { draw, world } <- H.modify (\st -> st { world = st.input e r st.world })
+       void $ H.query _canvas unit do
+          withContext do
+            width <- getWidth
+            height <- getHeight
+            clearRect { x: 0.0, y: 0.0, width, height }
+            draw world
 
 stopInputEventPropagation :: InputEvent -> Effect Unit
 stopInputEventPropagation (KeyDown e) = stopPropagation $ KeyboardEvent.toEvent e

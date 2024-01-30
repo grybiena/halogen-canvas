@@ -13,6 +13,9 @@ import Graphics.Canvas (Arc, BezierCurve, CanvasElement, CanvasGradient, CanvasI
 import Graphics.Canvas as G
 import Graphics.Canvas.Extra (JpegQuality, newOffScreenCanvas)
 import Graphics.Canvas.Extra as E
+import Unsafe.Coerce (unsafeCoerce)
+import Web.DOM.Element (DOMRect)
+import Web.DOM.Element as W
 import Web.File.Blob (Blob)
 
 type CanvasContext =
@@ -77,6 +80,9 @@ runCanvasT = runFreeM go <<< (\(CanvasT f) -> f)
       { canvasElement } <- ask
       liftEffect $ G.setCanvasDimensions canvasElement d
       pure a
+    go (GetBoundingClientRect a) = do
+      { canvasElement } <- ask
+      liftEffect $ a <$> W.getBoundingClientRect (unsafeCoerce canvasElement)
     go (ToDataURL a) = do
       { canvasElement } <- ask
       liftEffect $ a <$> G.canvasToDataURL canvasElement
@@ -318,6 +324,9 @@ getDimensions = liftC $ GetDimensions identity
 setDimensions :: forall m. Dimensions -> CanvasT m Unit
 setDimensions d = liftC $ SetDimensions d unit
 
+getBoundingClientRect :: forall m. CanvasT m DOMRect
+getBoundingClientRect = liftC $ GetBoundingClientRect identity
+
 toDataURL :: forall m. CanvasT m String
 toDataURL = liftC $ ToDataURL identity
 
@@ -509,6 +518,7 @@ data CanvasF m a =
   | SetHeight Number a
   | GetDimensions (Dimensions -> a)
   | SetDimensions Dimensions a
+  | GetBoundingClientRect (DOMRect -> a)
   | ToDataURL (String -> a)
   | SetLineWidth Number a
   | SetLineDash (Array Number) a
@@ -577,6 +587,7 @@ instance Functor m => Functor (CanvasF m) where
   map f (SetHeight h e) = SetHeight h (f e)
   map f (GetDimensions e) = GetDimensions (f <<< e)
   map f (SetDimensions d e) = SetDimensions d (f e)
+  map f (GetBoundingClientRect e) = GetBoundingClientRect (f <<< e)
   map f (ToDataURL e) = ToDataURL (f <<< e)
   map f (SetLineWidth w e) = SetLineWidth w (f e)
   map f (SetLineDash d e) = SetLineDash d (f e)
