@@ -16,16 +16,22 @@ import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Unsafe.Coerce (unsafeCoerce)
 
+type Dimensions =
+  { width :: Int
+  , height :: Int
+  }
+
 type State =
-  { canvas :: Maybe CanvasContext
+  { dimensions :: Dimensions
+  , canvas :: Maybe CanvasContext
   }
 
 data Action = Initialize
 
-component :: forall i o m. MonadAff m => MonadRec m => H.Component (CanvasT m) i o m
+component :: forall o m. MonadAff m => MonadRec m => H.Component (CanvasT m) Dimensions o m
 component = do
   H.mkComponent
-    { initialState: const { canvas: Nothing }
+    { initialState: \dimensions -> { dimensions, canvas: Nothing }
     , render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                      , handleQuery = handleQuery 
@@ -34,7 +40,12 @@ component = do
     }
 
 render :: forall m. State -> H.ComponentHTML Action () m
-render _ = HH.canvas [ HP.ref (H.RefLabel "canvas")]
+render { dimensions } =
+  HH.canvas
+    [ HP.ref (H.RefLabel "canvas")
+    , HP.width dimensions.width
+    , HP.height dimensions.height
+    ]
 
 handleAction :: forall m o .
                 MonadAff m
