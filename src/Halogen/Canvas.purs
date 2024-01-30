@@ -1,5 +1,6 @@
 module Halogen.Canvas
-  ( component
+  ( Dimensions(..)
+  , component
   ) where
 
 import Prelude

@@ -1,5 +1,6 @@
 module Halogen.Canvas.Animate
-  ( component
+  ( Animation(..)
+  , component
   ) where
 
 import Prelude
@@ -12,18 +13,13 @@ import Effect.Aff.Class (class MonadAff)
 import Graphics.Canvas (getContext2D)
 import Graphics.Canvas.Free (CanvasContext, CanvasT, clearRect, getHeight, getWidth, runCanvasT, withContext)
 import Halogen as H
+import Halogen.Canvas (Dimensions)
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.Subscription as HS
 import Unsafe.Coerce (unsafeCoerce)
 import Web.HTML (window)
 import Web.HTML.Window.AnimationFrame (DOMHighResTimestamp, requestAnimationFrame)
-
-type Dimensions =
-  { width :: Int
-  , height :: Int
-  }
-
 
 type Animation m =
   { dimensions :: Dimensions

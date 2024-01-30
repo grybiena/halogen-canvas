@@ -1,5 +1,6 @@
 module Halogen.Canvas.Game
-  ( component
+  ( Game(..)
+  , component
   ) where
 
 import Prelude
@@ -12,6 +13,7 @@ import Effect.Aff.Class (class MonadAff)
 import Graphics.Canvas (getContext2D)
 import Graphics.Canvas.Free (CanvasContext, CanvasT, clearRect, getHeight, getWidth, runCanvasT, withContext)
 import Halogen as H
+import Halogen.Canvas (Dimensions)
 import Halogen.Canvas.Interact (InputEvent(..), stopInputEventPropagation)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -21,12 +23,6 @@ import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM.Element (DOMRect, getBoundingClientRect)
 import Web.HTML (window)
 import Web.HTML.Window.AnimationFrame (DOMHighResTimestamp, requestAnimationFrame)
-
-type Dimensions =
-  { width :: Int
-  , height :: Int
-  }
-
 
 type Game world m =
   { dimensions :: Dimensions 

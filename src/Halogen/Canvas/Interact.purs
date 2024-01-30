@@ -1,5 +1,6 @@
 module Halogen.Canvas.Interact
-  ( InputEvent(..)
+  ( Interact(..)
+  , InputEvent(..)
   , stopInputEventPropagation
   , component
   ) where
@@ -15,6 +16,7 @@ import Effect.Aff.Class (class MonadAff)
 import Graphics.Canvas (getContext2D)
 import Graphics.Canvas.Free (CanvasContext, CanvasT, clearRect, getHeight, getWidth, runCanvasT, withContext)
 import Halogen as H
+import Halogen.Canvas (Dimensions)
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
@@ -25,11 +27,6 @@ import Web.UIEvent.KeyboardEvent (KeyboardEvent)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Web.UIEvent.MouseEvent as MouseEvent
-
-type Dimensions =
-  { width :: Int
-  , height :: Int
-  }
 
 data InputEvent =
     KeyDown KeyboardEvent
