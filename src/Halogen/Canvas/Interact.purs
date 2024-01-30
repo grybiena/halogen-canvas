@@ -96,7 +96,9 @@ handleAction = case _ of
     flip traverse_ e $ \ce -> do
        let canvasElement = unsafeCoerce ce
        context2D <- H.liftEffect $ getContext2D canvasElement
-       H.modify_ (\st -> st { canvas = Just { canvasElement, context2D } })
+       let ctx = { canvasElement, context2D }
+       { interact } <- H.modify (\st -> st { canvas = Just ctx })
+       H.lift $ runReaderT (runCanvasT (withContext $ interact.draw interact.world )) ctx
   InputEvent e -> do
     l <- H.getRef (H.RefLabel "canvas")
     flip traverse_ l $ \ce -> do
