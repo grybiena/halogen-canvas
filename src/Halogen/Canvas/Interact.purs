@@ -1,18 +1,17 @@
 module Halogen.Canvas.Interact
-  ( Interact(..)
-  , InputEvent(..)
-  , stopInputEventPropagation
-  , component
+  ( component
+  , Output(..)
+  , KeyInput(..)
+  , MouseInput(..)
   ) where
 
 import Prelude
 
 import Control.Monad.Rec.Class (class MonadRec)
-import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse_)
 import Effect (Effect)
 import Effect.Aff.Class (class MonadAff)
-import Graphics.Canvas.Free (CanvasT, clearRect, getBoundingClientRect, getHeight, getWidth, withContext)
+import Graphics.Canvas.Free (CanvasT, getBoundingClientRect)
 import Halogen as H
 import Halogen.Canvas (Dimensions)
 import Halogen.Canvas as Canvas
@@ -20,16 +19,18 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Type.Proxy (Proxy(..))
 import Web.DOM.Element (DOMRect)
-import Web.Event.Event (stopPropagation)
+import Web.Event.Event (Event, stopPropagation)
 import Web.UIEvent.KeyboardEvent (KeyboardEvent)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Web.UIEvent.MouseEvent as MouseEvent
 
-data InputEvent =
+data KeyInput =
     KeyDown KeyboardEvent
   | KeyUp KeyboardEvent
-  | Click MouseEvent 
+
+data MouseInput =
+    Click MouseEvent 
   | DoubleClick MouseEvent
   | MouseDown MouseEvent
   | MouseUp MouseEvent
@@ -37,79 +38,75 @@ data InputEvent =
   | MouseLeave MouseEvent
   | MouseMove MouseEvent
 
-type Interact world m =
-  { dimensions :: Dimensions 
-  , world :: world
-  , draw :: world -> CanvasT m Unit
-  , input :: InputEvent -> DOMRect -> world -> world
-  }
-
+data Output =
+    KeyEvent KeyInput
+  | MouseEvent MouseInput DOMRect
 
 type Slots m = ( canvas :: forall o. H.Slot (CanvasT m) o Unit ) 
 
 _canvas = Proxy :: Proxy "canvas"
 
-
 data Action =
-    Initialize
-  | InputEvent InputEvent 
+    KeyInput KeyInput 
+  | MouseInput MouseInput
 
-component :: forall q o world m. MonadAff m => MonadRec m => H.Component q (Interact world m) o m
+component :: forall m. MonadAff m => MonadRec m => H.Component (CanvasT m) Dimensions Output m
 component = do
   H.mkComponent
     { initialState: identity 
     , render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
-                                     , initialize = Just Initialize
+                                     , handleQuery = H.query _canvas unit
                                      }
     }
 
-render :: forall world m. MonadAff m => MonadRec m => Interact world m -> H.ComponentHTML Action (Slots m) m
-render { dimensions } =
+render :: forall m. MonadAff m => MonadRec m => Dimensions -> H.ComponentHTML Action (Slots m) m
+render dimensions =
   HH.div
-    [ HE.onKeyDown (InputEvent <<< KeyDown) 
-    , HE.onKeyUp (InputEvent <<< KeyUp)
-    , HE.onClick (InputEvent <<< Click)
-    , HE.onDoubleClick (InputEvent <<< DoubleClick)
-    , HE.onMouseDown (InputEvent <<< MouseDown)
-    , HE.onMouseUp (InputEvent <<< MouseUp)
-    , HE.onMouseEnter (InputEvent <<< MouseEnter)
-    , HE.onMouseLeave (InputEvent <<< MouseLeave)
-    , HE.onMouseMove (InputEvent <<< MouseMove)
+    [ HE.onKeyDown (KeyInput <<< KeyDown) 
+    , HE.onKeyUp (KeyInput <<< KeyUp)
+    , HE.onClick (MouseInput <<< Click)
+    , HE.onDoubleClick (MouseInput <<< DoubleClick)
+    , HE.onMouseDown (MouseInput <<< MouseDown)
+    , HE.onMouseUp (MouseInput <<< MouseUp)
+    , HE.onMouseEnter (MouseInput <<< MouseEnter)
+    , HE.onMouseLeave (MouseInput <<< MouseLeave)
+    , HE.onMouseMove (MouseInput <<< MouseMove)
     ]
     [ HH.slot_ _canvas unit Canvas.component dimensions
     ]
 
-handleAction :: forall m o world .
+handleAction :: forall m .
                 MonadAff m
              => MonadRec m
              => Action
-             -> H.HalogenM (Interact world m) Action (Slots m) o m Unit
+             -> H.HalogenM Dimensions Action (Slots m) Output m Unit
 handleAction = case _ of
-  Initialize -> do
-    { draw, world } <- H.get
-    void $ H.query _canvas unit (withContext $ draw world )
-  InputEvent e -> do
+  KeyInput e -> do
+    H.liftEffect $ stopInputEventPropagation e
+    H.raise $ KeyEvent e
+  MouseInput e -> do
+    H.liftEffect $ stopInputEventPropagation e
     rect <- H.query _canvas unit getBoundingClientRect
     flip traverse_ rect $ \r -> do
-       H.liftEffect $ stopInputEventPropagation e
-       { draw, world } <- H.modify (\st -> st { world = st.input e r st.world })
-       void $ H.query _canvas unit do
-          withContext do
-            width <- getWidth
-            height <- getHeight
-            clearRect { x: 0.0, y: 0.0, width, height }
-            draw world
+       H.raise $ MouseEvent e r
 
-stopInputEventPropagation :: InputEvent -> Effect Unit
-stopInputEventPropagation (KeyDown e) = stopPropagation $ KeyboardEvent.toEvent e
-stopInputEventPropagation (KeyUp e) = stopPropagation $ KeyboardEvent.toEvent e
-stopInputEventPropagation (Click e) = stopPropagation $ MouseEvent.toEvent e
-stopInputEventPropagation (DoubleClick e) = stopPropagation $ MouseEvent.toEvent e
-stopInputEventPropagation (MouseDown e) = stopPropagation $ MouseEvent.toEvent e
-stopInputEventPropagation (MouseUp e) = stopPropagation $ MouseEvent.toEvent e
-stopInputEventPropagation (MouseEnter e) = stopPropagation $ MouseEvent.toEvent e
-stopInputEventPropagation (MouseLeave e) = stopPropagation $ MouseEvent.toEvent e
-stopInputEventPropagation (MouseMove e) = stopPropagation $ MouseEvent.toEvent e
+class IsEvent e where 
+  toEvent :: e -> Event
 
+instance IsEvent KeyInput where
+  toEvent (KeyDown e) = KeyboardEvent.toEvent e
+  toEvent (KeyUp e) = KeyboardEvent.toEvent e
+
+instance IsEvent MouseInput where
+  toEvent (Click e) = MouseEvent.toEvent e
+  toEvent (DoubleClick e) = MouseEvent.toEvent e
+  toEvent (MouseDown e) = MouseEvent.toEvent e
+  toEvent (MouseUp e) = MouseEvent.toEvent e
+  toEvent (MouseEnter e) = MouseEvent.toEvent e
+  toEvent (MouseLeave e) = MouseEvent.toEvent e
+  toEvent (MouseMove e) = MouseEvent.toEvent e
+
+stopInputEventPropagation :: forall e. IsEvent e => e -> Effect Unit
+stopInputEventPropagation e = stopPropagation $ toEvent e
 
