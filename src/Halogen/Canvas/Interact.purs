@@ -3,6 +3,7 @@ module Halogen.Canvas.Interact
   , Output(..)
   , KeyInput(..)
   , MouseInput(..)
+  , TouchInput(..)
   ) where
 
 import Prelude
@@ -20,10 +21,12 @@ import Halogen.HTML.Events as HE
 import Type.Proxy (Proxy(..))
 import Web.DOM.Element (DOMRect)
 import Web.Event.Event (Event, stopPropagation)
+import Web.TouchEvent (TouchEvent)
 import Web.UIEvent.KeyboardEvent (KeyboardEvent)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
 import Web.UIEvent.MouseEvent (MouseEvent)
 import Web.UIEvent.MouseEvent as MouseEvent
+import Web.TouchEvent.TouchEvent as TouchEvent
 
 data KeyInput =
     KeyDown KeyboardEvent
@@ -38,9 +41,18 @@ data MouseInput =
   | MouseLeave MouseEvent
   | MouseMove MouseEvent
 
+data TouchInput =
+    TouchCancel TouchEvent
+  | TouchEnd TouchEvent
+  | TouchEnter TouchEvent
+  | TouchLeave TouchEvent
+  | TouchMove TouchEvent
+  | TouchStart TouchEvent
+
 data Output =
     KeyEvent KeyInput
   | MouseEvent MouseInput DOMRect
+  | TouchEvent TouchInput DOMRect
 
 type Slots m = ( canvas :: forall o. H.Slot (CanvasT m) o Unit ) 
 
@@ -49,6 +61,7 @@ _canvas = Proxy :: Proxy "canvas"
 data Action =
     KeyInput KeyInput 
   | MouseInput MouseInput
+  | TouchInput TouchInput
 
 component :: forall m. MonadAff m => MonadRec m => H.Component (CanvasT m) Dimensions Output m
 component = do
@@ -72,6 +85,12 @@ render dimensions =
     , HE.onMouseEnter (MouseInput <<< MouseEnter)
     , HE.onMouseLeave (MouseInput <<< MouseLeave)
     , HE.onMouseMove (MouseInput <<< MouseMove)
+    , HE.onTouchCancel (TouchInput <<< TouchCancel)
+    , HE.onTouchEnd (TouchInput <<< TouchEnd)
+    , HE.onTouchEnter (TouchInput <<< TouchEnter)
+    , HE.onTouchLeave (TouchInput <<< TouchLeave)
+    , HE.onTouchMove (TouchInput <<< TouchMove)
+    , HE.onTouchStart (TouchInput <<< TouchStart)
     ]
     [ HH.slot_ _canvas unit Canvas.component dimensions
     ]
@@ -90,6 +109,12 @@ handleAction = case _ of
     rect <- H.query _canvas unit getBoundingClientRect
     flip traverse_ rect $ \r -> do
        H.raise $ MouseEvent e r
+  TouchInput e -> do
+    H.liftEffect $ stopInputEventPropagation e
+    rect <- H.query _canvas unit getBoundingClientRect
+    flip traverse_ rect $ \r -> do
+       H.raise $ TouchEvent e r
+
 
 class IsEvent e where 
   toEvent :: e -> Event
@@ -106,6 +131,14 @@ instance IsEvent MouseInput where
   toEvent (MouseEnter e) = MouseEvent.toEvent e
   toEvent (MouseLeave e) = MouseEvent.toEvent e
   toEvent (MouseMove e) = MouseEvent.toEvent e
+
+instance IsEvent TouchInput where
+  toEvent (TouchCancel e) = TouchEvent.toEvent e
+  toEvent (TouchEnd e) = TouchEvent.toEvent e
+  toEvent (TouchEnter e) = TouchEvent.toEvent e
+  toEvent (TouchLeave e) = TouchEvent.toEvent e
+  toEvent (TouchMove e) = TouchEvent.toEvent e
+  toEvent (TouchStart e) = TouchEvent.toEvent e
 
 stopInputEventPropagation :: forall e. IsEvent e => e -> Effect Unit
 stopInputEventPropagation e = stopPropagation $ toEvent e
