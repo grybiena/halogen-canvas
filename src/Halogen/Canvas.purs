@@ -27,7 +27,7 @@ type State =
   , canvas :: Maybe CanvasContext
   }
 
-data Action = Initialize
+data Action = Initialize | Receive Dimensions
 
 component :: forall o m. MonadAff m => MonadRec m => H.Component (CanvasT m) Dimensions o m
 component = do
@@ -37,6 +37,7 @@ component = do
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                      , handleQuery = handleQuery 
                                      , initialize = Just Initialize
+                                     , receive = Just <<< Receive
                                      }
     }
 
@@ -59,6 +60,7 @@ handleAction = case _ of
        let canvasElement = unsafeCoerce ce
        context2D <- H.liftEffect $ getContext2D canvasElement
        H.modify_ (\st -> st { canvas = Just { canvasElement, context2D } })
+  Receive dimensions -> H.modify_ \st -> st { dimensions = dimensions }
 
 
 handleQuery :: forall m o a .

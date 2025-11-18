@@ -32,9 +32,10 @@ type Slots m = ( canvas :: forall o. H.Slot (CanvasT m) o Unit )
 
 _canvas = Proxy :: Proxy "canvas"
 
-data Action =
+data Action m =
     Initialize
   | AnimationFrame DOMHighResTimestamp
+  | Receive (Animation m)
 
 component :: forall q o m. MonadAff m => MonadRec m => H.Component q (Animation m) o m
 component = do
@@ -43,18 +44,19 @@ component = do
     , render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                      , initialize = Just Initialize
+                                     , receive = Just <<< Receive
                                      }
     }
 
-render :: forall m. MonadAff m => MonadRec m => State m -> H.ComponentHTML Action (Slots m) m
+render :: forall m. MonadAff m => MonadRec m => State m -> H.ComponentHTML (Action m) (Slots m) m
 render { dimensions } = HH.slot_ _canvas unit Canvas.component dimensions
 
 
 handleAction :: forall m o .
                 MonadAff m
              => MonadRec m
-             => Action
-             -> H.HalogenM (State m) Action (Slots m) o m Unit
+             => (Action m)
+             -> H.HalogenM (State m) (Action m) (Slots m) o m Unit
 handleAction = case _ of
   Initialize -> do
     { emitter, listener } <- H.liftEffect HS.create
@@ -71,6 +73,8 @@ handleAction = case _ of
           clearRect { x: 0.0, y: 0.0, width, height }
           animation t
     void $ H.query _canvas unit draw
+
+  Receive animation -> H.put animation
 
 
 
